@@ -20,7 +20,6 @@
         
         body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            /* Теплый премиальный фон под стать твоему скриншоту */
             background: linear-gradient(135deg, #cf8f64 0%, #a45c30 50%, #693313 100%);
             height: 100dvh; height: 100vh; overflow: hidden;
         }
@@ -31,7 +30,6 @@
             backdrop-filter: blur(25px) saturate(160%);
             -webkit-backdrop-filter: blur(25px) saturate(160%);
             border-radius: 40px;
-            /* Двойная тень: внешняя мягкая + внутренняя белая для глянцевого блика */
             box-shadow: 
                 0 15px 35px rgba(0, 0, 0, 0.15), 
                 inset 0 1px 2px rgba(255, 255, 255, 0.9),
@@ -46,6 +44,12 @@
         
         .box {
             composes: liquid-glass-panel;
+            background: rgba(255, 248, 240, 0.65);
+            backdrop-filter: blur(25px) saturate(160%);
+            -webkit-backdrop-filter: blur(25px) saturate(160%);
+            border-radius: 40px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15), inset 0 1px 2px rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.4);
             padding: 45px 35px; max-width: 420px; width: 100%;
             text-align: center;
         }
@@ -63,7 +67,7 @@
         
         input { 
             width: 100%; padding: 18px 24px; font-size: 18px; 
-            border: 1px solid rgba(255,255,255,0.5); border-radius: 100px; /* Круглые края как на фото */
+            border: 1px solid rgba(255,255,255,0.5); border-radius: 100px; 
             margin-bottom: 20px; background: rgba(255, 255, 255, 0.4); 
             outline: none; transition: 0.3s; 
             color: #3d210a; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
@@ -92,7 +96,6 @@
         }
         #chatScreen.active { display: flex; }
 
-        /* Круглая кнопка обновления в стиле лупы со скриншота */
         .refresh-btn {
             position: absolute; top: 15px; right: 15px; z-index: 10;
             width: 50px; height: 50px; border-radius: 50%;
@@ -105,11 +108,15 @@
         }
         .refresh-btn:hover { background: rgba(255,255,255,0.9); transform: scale(1.05); }
 
+        /* СПИСОК СООБЩЕНИЙ С ПРОКРУТКОЙ «ПОД ИНПУТ» */
         .messages {
             flex: 1 1 auto; overflow-y: auto;
             padding: 10px 20px;
             display: flex; flex-direction: column; gap: 14px;
-            margin: 75px auto 0 auto;
+            margin: 0 auto; 
+            padding-top: 75px;
+            /* Запас снизу, чтобы последнее сообщение не перекрывалось инпутом при максимальной прокрутке */
+            padding-bottom: calc(95px + env(safe-area-inset-bottom, 0px));
             width: 100%; max-width: 800px;
             align-items: stretch;
         }
@@ -133,7 +140,6 @@
         .sent .msg-content { flex-direction: row-reverse; }
         .received .msg-content { flex-direction: row; }
 
-        /* ПУЗЫРЬКИ СООБЩЕНИЙ В ВИДЕ ЖИДКОГО СТЕКЛА */
         .bubble {
             display: inline-block; padding: 14px 22px; border-radius: 26px; font-size: 17px; line-height: 1.5;
             box-shadow: 0 8px 20px rgba(0,0,0,0.08), inset 0 1px 2px rgba(255,255,255,0.8);
@@ -141,12 +147,10 @@
             cursor: pointer; user-select: none; max-width: 100%; overflow-wrap: break-word; word-break: break-word;
             border: 1px solid rgba(255,255,255,0.4);
         }
-        /* Своё свечение для отправленных (легкий голубоватый или золотистый блик) */
         .sent .bubble { 
             background: rgba(255, 250, 240, 0.85); 
             color: #3d210a; 
             border-bottom-right-radius: 8px; 
-            /* Подсветка активного жидкого элемента, как на вкладке Today */
             box-shadow: 0 8px 22px rgba(0,0,0,0.1), inset 3px 1px 8px rgba(255, 230, 200, 0.5), inset 0 1px 2px rgba(255,255,255,1);
         }
         .received .bubble { 
@@ -174,7 +178,6 @@
         .spinner-circle { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.2); border-top: 4px solid white; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* РЕАКЦИИ И ПАНЕЛИ */
         .reactions-container { display: flex; flex-wrap: wrap; gap: 4px; }
         .sent .reactions-container { justify-content: flex-end; }
         .reaction-badge { 
@@ -210,14 +213,24 @@
         .emoji-option { font-size: 20px; cursor: pointer; transition: transform 0.1s; padding: 4px; }
         .emoji-option:hover { transform: scale(1.25); }
 
-        /* ИНПУТ-БАР В ВИДЕ ДЛИННОЙ КАПСУЛЫ */
+        /* ЗАКРЕПЛЕННЫЙ ИНПУТ-БАР (ПАРЯЩЕЕ СТЕКЛО) */
         .input-area {
-            background: rgba(255, 248, 240, 0.6); 
-            backdrop-filter: blur(25px) saturate(150%); -webkit-backdrop-filter: blur(25px) saturate(150%);
-            padding: 12px 16px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-            margin: 0 auto 15px auto; display: flex; gap: 12px; align-items: flex-end;
-            border-radius: 100px; /* Идеальный овал как нижний док на картинке */
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15), inset 0 1px 2px rgba(255, 255, 255, 0.8);
+            position: fixed;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5; /* Поверх сообщений */
+            
+            /* Делаем стекло прозрачнее, чтобы текст букв эффектно размывался сзади */
+            background: rgba(255, 248, 240, 0.4); 
+            backdrop-filter: blur(30px) saturate(160%); 
+            -webkit-backdrop-filter: blur(30px) saturate(160%);
+            
+            padding: 12px 16px; 
+            padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+            display: flex; gap: 12px; align-items: flex-end;
+            border-radius: 100px; 
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.8);
             border: 1px solid rgba(255, 255, 255, 0.4);
             width: calc(100% - 20px); max-width: 800px;
         }
@@ -235,7 +248,6 @@
             border-color: rgba(255,255,255,0.5);
         }
         
-        /* Круглая кнопка отправки */
         .input-area button {
             width: 48px; height: 48px; border-radius: 50%; padding: 0;
             display: flex; align-items: center; justify-content: center;
@@ -248,10 +260,14 @@
 
         @media (max-width: 480px) {
             .emoji-panel { max-width: calc(100vw - 30px); }
-            .messages { padding: 5px 12px; gap: 10px; margin-top: 65px; }
+            .messages { 
+                padding: 5px 12px; gap: 10px; 
+                padding-top: 65px;
+                padding-bottom: calc(85px + env(safe-area-inset-bottom, 0px));
+            }
             .bubble { font-size: 16px; padding: 12px 18px; border-radius: 22px; }
             .msg { max-width: 85%; }
-            .input-area { width: calc(100% - 16px); margin-bottom: 8px; padding: 10px; }
+            .input-area { width: calc(100% - 16px); bottom: 8px; padding: 10px; }
             .input-area textarea { padding: 11px 18px; min-height: 44px; font-size: 16px; }
             .input-area button { width: 44px; height: 44px; }
         }
@@ -836,29 +852,4 @@
             }
         });
 
-        const saved = localStorage.getItem('semejka_user');
-        if (saved) {
-            const user = JSON.parse(saved);
-            regScreen.classList.remove('active');
-            chatScreen.classList.add('active');
-            loadingSpinner.classList.add('active');
-            _sgClient.from('users').select('*').eq('id', user.id).single().then(async ({ data }) => {
-                if (data) {
-                    currentUser = data;
-                    await loadMessages();
-                    loadingSpinner.classList.remove('active');
-                    subscribeMessages();
-                    startPolling(); 
-                } else {
-                    localStorage.removeItem('semejka_user');
-                    regScreen.classList.add('active');
-                    chatScreen.classList.remove('active');
-                }
-            });
-        }
-
-        function formatTime(ts) { const d = new Date(ts); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); }
-        function escapeHtml(text) { const el = document.createElement('div'); el.textContent = text; return el.innerHTML; }
-    </script>
-</body>
-</html>
+        const saved

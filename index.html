@@ -105,8 +105,6 @@
 
         .msg-content { 
             display: flex; align-items: flex-end; gap: 6px; width: 100%; 
-            will-change: transform;
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .sent .msg-content { flex-direction: row-reverse; }
         .received .msg-content { flex-direction: row; }
@@ -115,6 +113,8 @@
             display: inline-block; padding: 14px 20px; border-radius: 22px; font-size: 17px; line-height: 1.5; word-wrap: break-word;
             box-shadow: 0 4px 14px rgba(0,0,0,0.12); background: rgba(240,236,245,0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             color: #3A3A4A; cursor: pointer; user-select: none; max-width: 100%; overflow-wrap: break-word; word-break: break-word; border: 1px solid rgba(255,255,255,0.6);
+            will-change: transform;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .sent .bubble { border-bottom-right-radius: 8px; }
         .received .bubble { border-bottom-left-radius: 8px; }
@@ -480,41 +480,59 @@
             addLongPressListeners(div, msg.id);
 
             // --- ПОДДЕРЖКА ЖЕСТОВ (СВАЙПОВ) ---
-            const msgContent = div.querySelector('.msg-content');
-            if (!msgContent) return;
+            const bubbleEl = div.querySelector('.bubble');
+            if (!bubbleEl) return;
 
             let touchStartX = 0;
+            let touchStartY = 0;
             let touchMoveX = 0;
-            const swipeThreshold = 70;
+            let isHorizontalSwipe = false;
+            const swipeThreshold = 60;
 
-            msgContent.addEventListener('touchstart', (e) => {
+            bubbleEl.addEventListener('touchstart', (e) => {
                 touchStartX = e.touches[0].clientX;
-                msgContent.style.transition = 'none';
+                touchStartY = e.touches[0].clientY;
+                touchMoveX = 0;
+                isHorizontalSwipe = false;
+                bubbleEl.style.transition = 'none';
             }, { passive: true });
 
-            msgContent.addEventListener('touchmove', (e) => {
+            bubbleEl.addEventListener('touchmove', (e) => {
                 touchMoveX = e.touches[0].clientX;
+                let touchMoveY = e.touches[0].clientY;
+                
                 let offsetX = touchMoveX - touchStartX;
-                if (offsetX > 100) offsetX = 100;
-                if (offsetX < -100) offsetX = -100;
-                msgContent.style.transform = `translateX(${offsetX}px)`;
-            }, { passive: true });
+                let offsetY = touchMoveY - touchStartY;
 
-            msgContent.addEventListener('touchend', () => {
-                msgContent.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                if (!isHorizontalSwipe && Math.abs(offsetY) > Math.abs(offsetX)) {
+                    return;
+                }
+                
+                isHorizontalSwipe = true;
+
+                if (e.cancelable) {
+                    e.preventDefault();
+                }
+
+                if (offsetX > 90) offsetX = 90;
+                if (offsetX < -90) offsetX = -90;
+
+                bubbleEl.style.transform = `translateX(${offsetX}px)`;
+            }, { passive: false });
+
+            bubbleEl.addEventListener('touchend', () => {
+                bubbleEl.style.transform = 'translateX(0px)';
+                bubbleEl.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                
+                if (!isHorizontalSwipe) return;
+
                 let finalOffset = touchMoveX ? (touchMoveX - touchStartX) : 0;
                 touchStartX = 0; touchMoveX = 0;
 
                 if (finalOffset < -swipeThreshold) {
-                    // Свайп влево -> Показать реакции
-                    msgContent.style.transform = 'translateX(0px)';
                     showEmojiPanel(msg.id);
                 } else if (finalOffset > swipeThreshold) {
-                    // Свайп вправо -> Быстрый ответ
-                    msgContent.style.transform = 'translateX(0px)';
                     insertMention(`${searchTag ? searchTag : '@' + displayName} `);
-                } else {
-                    msgContent.style.transform = 'translateX(0px)';
                 }
             });
         }

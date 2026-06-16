@@ -148,8 +148,10 @@
         .spinner-circle { width: 40px; height: 40px; border: 4px solid rgba(108,99,255,0.2); border-top: 4px solid #6C63FF; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .reactions-container { display: flex; flex-wrap: wrap; gap: 4px; }
+        .reactions-container { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
         .sent .reactions-container { justify-content: flex-end; }
+        .received .reactions-container { justify-content: flex-start; }
+        
         .reaction-badge { background: rgba(255,255,255,0.85); border-radius: 12px; padding: 2px 6px; font-size: 11px; display: flex; align-items: center; gap: 3px; cursor: pointer; transition: 0.2s; border: 1px solid rgba(255,255,255,0.4); box-shadow: 0 2px 6px rgba(0,0,0,0.08); white-space: nowrap; }
         .reaction-badge:hover { background: rgba(255,255,255,0.95); transform: scale(1.05); }
         .reaction-badge.active { background: rgba(108,99,255,0.25); border-color: #6C63FF; }
@@ -326,7 +328,6 @@
             resetTextarea();
         }
 
-        // Расширенная база эмодзи со словарем ассоциаций для ИИ-поиска по словам
         const EMOJI_DATABASE = [
             { emoji: '👍', tags: ['класс', 'круто', 'да', 'лайк', 'хорошо', 'ок', 'согласен'] },
             { emoji: '❤️', tags: ['любовь', 'сердце', 'люблю', 'обожаю', 'мама', 'папа', 'мило'] },
@@ -401,7 +402,11 @@
                     
                     filtered.forEach(item => {
                         const span = document.createElement('span'); span.className = 'emoji-option'; span.textContent = item.emoji;
-                        span.onclick = (e) => { e.stopPropagation(); panel.classList.remove('open'); alert(`Реакция ${item.emoji} выбрана!`); };
+                        span.onclick = async (e) => { 
+                            e.stopPropagation(); 
+                            panel.classList.remove('open'); 
+                            await toggleReaction(messageId, item.emoji);
+                        };
                         quickContainer.appendChild(span);
                     });
                 };
@@ -419,6 +424,22 @@
                 const input = panel.querySelector('.emoji-search-input');
                 if (input) { input.value = ''; filterEmojis(''); input.focus(); }
             }, 50);
+        }
+
+        async function toggleReaction(messageId, emoji) {
+            if (!currentUser) return;
+            try {
+                await fetch(`${API_URL}/messages/${messageId}/reactions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUser.id,
+                        emoji: emoji
+                    })
+                });
+            } catch (err) {
+                console.error('Ошибка отправки реакции:', err);
+            }
         }
 
         document.addEventListener('click', (e) => {
@@ -443,8 +464,54 @@
             autoResize();
         };
 
+        function renderReactions(msgEl, reactionsList, messageId) {
+            let container = msgEl.querySelector('.reactions-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.className = 'reactions-container';
+                const footer = msgEl.querySelector('.msg-footer');
+                if (footer) {
+                    msgEl.insertBefore(container, footer);
+                } else {
+                    msgEl.appendChild(container);
+                }
+            }
+            container.innerHTML = '';
+
+            if (!reactionsList || reactionsList.length === 0) {
+                container.remove();
+                return;
+            }
+
+            const counts = {};
+            const userReacted = {};
+
+            reactionsList.forEach(r => {
+                counts[r.emoji] = (counts[r.emoji] || 0) + 1;
+                if (currentUser && String(r.user_id) === String(currentUser.id)) {
+                    userReacted[r.emoji] = true;
+                }
+            });
+
+            Object.keys(counts).forEach(emoji => {
+                const badge = document.createElement('div');
+                badge.className = 'reaction-badge' + (userReacted[emoji] ? ' active' : '');
+                badge.innerHTML = `<span>${emoji}</span> <span>${counts[emoji]}</span>`;
+                badge.onclick = async (e) => {
+                    e.stopPropagation();
+                    await toggleReaction(messageId, emoji);
+                };
+                container.appendChild(badge);
+            });
+        }
+
         function renderMessage(msg, animate = false) {
-            if (!msg.id || document.getElementById('msg-' + msg.id)) return;
+            let div = document.getElementById('msg-' + msg.id);
+            
+            if (div) {
+                renderReactions(div, msg.reactions, msg.id);
+                return;
+            }
             
             const msgDate = new Date(msg.created_at || Date.now()).toLocaleDateString('ru-RU');
             if (msgDate !== lastDisplayedDate) { 
@@ -452,7 +519,7 @@
                 lastDisplayedDate = msgDate; 
             }
 
-            const div = document.createElement('div');
+            div = document.createElement('div');
             div.id = 'msg-' + msg.id; 
             div.className = 'msg ' + (msg.user_id === currentUser?.id ? 'sent' : 'received');
 
@@ -475,12 +542,14 @@
 
             div.innerHTML = html; 
             messagesDiv.appendChild(div);
+            
+            renderReactions(div, msg.reactions, msg.id);
+            
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             
             if (animate) div.classList.add('animate-in');
             addLongPressListeners(div, msg.id);
 
-            // --- ПОДДЕРЖКА ЖЕСТОВ (СВАЙПОВ) ---
             const bubbleEl = div.querySelector('.bubble');
             if (!bubbleEl) return;
 
@@ -510,10 +579,7 @@
                 }
                 
                 isHorizontalSwipe = true;
-
-                if (e.cancelable) {
-                    e.preventDefault();
-                }
+                if (e.cancelable) e.preventDefault();
 
                 if (offsetX > 90) offsetX = 90;
                 if (offsetX < -90) offsetX = -90;
@@ -530,12 +596,7 @@
                 let finalOffset = touchMoveX ? (touchMoveX - touchStartX) : 0;
                 touchStartX = 0; touchMoveX = 0;
 
-                // ОБНОВЛЕННАЯ ЛОГИКА: Теперь свайп вправо ТОЖЕ открывает меню реакций, как ты и просил
-                if (finalOffset < -swipeThreshold) {
-                    // Свайп влево -> Меню реакций
-                    showEmojiPanel(msg.id);
-                } else if (finalOffset > swipeThreshold) {
-                    // Свайп вправо -> ТЕПЕРЬ ТОЖЕ Меню реакций (вместо авто-упоминания)
+                if (Math.abs(finalOffset) > swipeThreshold) {
                     showEmojiPanel(msg.id);
                 }
             });
@@ -569,8 +630,8 @@
             socket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    if (data.event === 'shout' && data.payload) {
-                        renderMessage(data.payload, true);
+                    if ((data.event === 'shout' || data.event === 'reaction_updated') && data.payload) {
+                        renderMessage(data.payload, data.event === 'shout');
                     }
                 } catch (e) { console.error("Ошибка парсинга сокета:", e); }
             };

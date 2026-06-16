@@ -283,12 +283,25 @@
     </div>
 
     <script>
-        // ИСПРАВЛЕННЫЙ БЛОК КОНФИГУРАЦИИ ССЫЛОК
         const HF_SPACE_DOMAIN = 'mrkricalo-semejka-plus-chat.hf.space'; 
         
         const API_URL = `https://${HF_SPACE_DOMAIN}`;
         const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const WS_URL = `${WS_PROTOCOL}//${HF_SPACE_DOMAIN}/ws`;
+        
+        // ВАЖНО: Выносим инициализацию WS_URL в функцию, чтобы прикреплять сохраненный apikey динамически
+        function getWsUrl() {
+            const saved = localStorage.getItem('semejka_user');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.apikey) {
+                        // Явно передаем apikey в параметрах URL сокета для прокси-сервера
+                        return `${WS_PROTOCOL}//${HF_SPACE_DOMAIN}/ws?apikey=${encodeURIComponent(parsed.apikey)}`;
+                    }
+                } catch(e) {}
+            }
+            return `${WS_PROTOCOL}//${HF_SPACE_DOMAIN}/ws`;
+        }
 
         const regScreen = document.getElementById('regScreen');
         const chatScreen = document.getElementById('chatScreen');
@@ -595,6 +608,106 @@
             
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
+
+        // Измененная функция инициализации Realtime-подключения
+        function initRealtime() {
+            if (socket) { try { socket.close(); } catch(e){} }
+
+            // Вызываем динамическое получение URL со встроенным апи-ключом
+            const currentWsUrl = getWsUrl();
+            socket = new WebSocket(currentWsUrl);
+
+            socket.onopen = () => {
+                console.log('Подключено к прокси Realtime!');
+                // Каждые 25 секунд шлем хартбит, чтобы соединение не висло
+                setInterval(() => {
+                    if(socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify({ event: "heartbeat", topic: "phoenix", payload: {}, ref: null }));
+                    }
+                }, 25000);
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.event === "postgres_changes" && data.payload && data.payload.data) {
+                        loadMessages(); // При любых изменениях обновляем чат
+                    }
+                } catch(e) {}
+            };
+
+            socket.onerror = (err) => { console.error('Ошибка сокета:', err); };
+            socket.onclose = () => { console.log('Сокет закрыт. Реконнект через 4 сек...'); setTimeout(initRealtime, 4000); };
+        }
+
+        async function loadMessages() {
+            if (!currentUser) return;
+            loadingSpinner.classList.add('active');
+            try {
+                const res = await fetch(`${API_URL}/messages?order=created_at.asc`, {
+                    headers: { 'apikey': currentUser.apikey, 'Authorization': `Bearer ${currentUser.apikey}` }
+                });
+                if (!res.ok) throw new Error('Ошибка сети');
+                const list = await res.json();
+                
+                const oldScroll = messagesDiv.scrollHeight - messagesDiv.scrollTop;
+                
+                // Очищаем и заново рендерим, чтобы избежать дублей
+                const spinners = loadingSpinner.outerHTML;
+                messagesDiv.innerHTML = spinners;
+                lastDisplayedDate = null;
+                
+                list.forEach(m => renderMessage(m));
+                
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (err) {
+                console.error(err);
+            } finally {
+                loadingSpinner.classList.remove('active');
+            }
+        }
+
+        // Полноценный вход в систему
+        async function handleLogin(name, tag, customKey) {
+            const finalTag = tag.startsWith('@') ? tag : '@' + tag;
+            const payload = { id: Date.now(), name: name, tag: finalTag, apikey: customKey };
+            
+            localStorage.setItem('semejka_user', JSON.stringify(payload));
+            currentUser = payload;
+            
+            regScreen.classList.remove('active');
+            chatScreen.classList.add('active');
+            
+            await loadMessages();
+            initRealtime(); // Запускаем вебсокет уже после сохранения сессии
+        }
+
+        // Кнопка входа
+        joinBtn.onclick = async () => {
+            const name = nameInput.value.trim();
+            const tag = usernameInput.value.trim();
+            // Сюда можно добавить статический или динамический ключ
+            const defaultKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmc3hmbHNidWV5b3Rpa3NxY25wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTg1NjM0MDAsImV4cCI6MjAzNDE1OTQwMH0.your-key-here"; 
+
+            if(!name || !tag) return alert('Заполните все поля!');
+            await handleLogin(name, tag, defaultKey);
+        };
+
+        refreshBtn.onclick = loadMessages;
+
+        // Авто-логин при загрузке страницы
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('semejka_user');
+            if(saved) {
+                try {
+                    currentUser = JSON.parse(saved);
+                    regScreen.classList.remove('active');
+                    chatScreen.classList.add('active');
+                    loadMessages();
+                    initRealtime();
+                } catch(e) { logout(); }
+            }
+        });
     </script>
 </body>
 </html>

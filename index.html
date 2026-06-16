@@ -432,7 +432,7 @@
             let processed = text.replace(urlRegex, (url) => `<a href="${url.replace(/"/g, '&quot;')}" target="_blank" rel="noopener noreferrer">${url}</a>`);
             
             const mentionRegex = /(@[a-zA-Z0-9_]+)/g;
-            processed = processed.replace(mentionRegex, (mention) => `<span class="mention" onclick="insertMention('${mention} ')">${mention}</span>`);
+            processed = processed.replace(mentionRegex, (mention) => `<span class="mention" ondblclick="insertMention('${mention} ')" style="cursor: pointer;">${mention}</span>`);
             
             return processed;
         }
@@ -467,7 +467,8 @@
             }
 
             if (msg.user_id !== currentUser?.id) {
-                html += `<div class="name" onclick="insertMention('${searchTag ? searchTag : '@' + displayName} ')" title="Упомянуть пользователя">${escapeHtml(displayName)} <span style="font-size:11px; font-weight:normal; opacity:0.6;">${escapeHtml(searchTag)}</span></div>`;
+                const mentionPayload = searchTag ? searchTag : '@' + displayName;
+                html += `<div class="name" ondblclick="insertMention('${mentionPayload} ')" title="Двойной клик для упоминания">${escapeHtml(displayName)} <span style="font-size:11px; font-weight:normal; opacity:0.6;">${escapeHtml(searchTag)}</span></div>`;
             }
             html += `<div class="msg-content"><div class="bubble">${linkify(escapeHtml(msg.text || ''))}</div></div>`;
             html += `<div class="msg-footer"><div class="time">${formatTime(msg.created_at || new Date().toISOString())}</div></div>`;
@@ -529,10 +530,13 @@
                 let finalOffset = touchMoveX ? (touchMoveX - touchStartX) : 0;
                 touchStartX = 0; touchMoveX = 0;
 
+                // ОБНОВЛЕННАЯ ЛОГИКА: Теперь свайп вправо ТОЖЕ открывает меню реакций, как ты и просил
                 if (finalOffset < -swipeThreshold) {
+                    // Свайп влево -> Меню реакций
                     showEmojiPanel(msg.id);
                 } else if (finalOffset > swipeThreshold) {
-                    insertMention(`${searchTag ? searchTag : '@' + displayName} `);
+                    // Свайп вправо -> ТЕПЕРЬ ТОЖЕ Меню реакций (вместо авто-упоминания)
+                    showEmojiPanel(msg.id);
                 }
             });
         }
@@ -584,7 +588,8 @@
             sendBtn.disabled = true;
             resetTextarea();
 
-            const compositeName = currentUser.username ? `${currentUser.name}||${currentUser.username}` : currentUser.name;
+            const compositeName = currentUser.name || '';
+            const compositeValue = currentUser.username ? `${compositeName}||${currentUser.username}` : compositeName;
 
             try {
                 await fetch(`${API_URL}/messages`, {
@@ -592,7 +597,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         user_id: currentUser.id,
-                        user_name: compositeName,
+                        user_name: compositeValue,
                         text: cleanText
                     })
                 });

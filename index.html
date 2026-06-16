@@ -137,14 +137,13 @@
             text-decoration: underline;
         }
 
-        /* Исправленный футер: строгий ряд без row-reverse */
+        /* Выравнивание подвала сообщений */
         .msg-footer { 
             display: flex; 
             align-items: center; 
             gap: 6px; 
             margin-top: 4px; 
             width: 100%; 
-            flex-wrap: wrap; 
         }
         .sent .msg-footer { justify-content: flex-end; }
         .received .msg-footer { justify-content: flex-start; }
@@ -156,9 +155,10 @@
         .spinner-circle { width: 40px; height: 40px; border: 4px solid rgba(108,99,255,0.2); border-top: 4px solid #6C63FF; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .reactions-container { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+        /* Контейнер реакций — чистый flex ряд без лишних стилей */
+        .reactions-container { display: flex; gap: 4px; align-items: center; }
         
-        /* Кнопка-реакция полностью повторяет дизайн индикатора времени */
+        /* Кнопка-реакция полностью повторяет дизайн индикатора времени с твоего фото */
         .reaction-badge { 
             background: rgba(255,255,255,0.5); 
             border: 1px solid rgba(255,255,255,0.6); 
@@ -487,17 +487,24 @@
             autoResize();
         };
 
-        /* Исправленная функция отрисовки реакций строго в линию со временем */
+        /* Кардинально исправленный рендер: убрана пустая белая подложка */
         function renderReactions(msgEl, reactionsList, messageId) {
             const footer = msgEl.querySelector('.msg-footer');
             if (!footer) return;
 
+            // Если реакций на самом деле нет — полностью удаляем контейнер и выходим
+            if (!reactionsList || reactionsList.length === 0) {
+                let container = footer.querySelector('.reactions-container');
+                if (container) container.remove();
+                return;
+            }
+
+            // Если реакции есть, находим или создаем контейнер динамически
             let container = footer.querySelector('.reactions-container');
             if (!container) {
                 container = document.createElement('div');
                 container.className = 'reactions-container';
                 
-                // Для наших сообщений ставим блок реакций СЛЕВА от часиков, для чужих — СПРАВА
                 if (msgEl.classList.contains('sent')) {
                     footer.insertBefore(container, footer.firstChild);
                 } else {
@@ -505,11 +512,6 @@
                 }
             }
             container.innerHTML = '';
-
-            if (!reactionsList || reactionsList.length === 0) {
-                container.remove();
-                return;
-            }
 
             const counts = {};
             const userReacted = {};
@@ -521,6 +523,7 @@
                 }
             });
 
+            // Наполняем реакциями
             Object.keys(counts).forEach(emoji => {
                 const badge = document.createElement('div');
                 badge.className = 'reaction-badge' + (userReacted[emoji] ? ' active' : '');
